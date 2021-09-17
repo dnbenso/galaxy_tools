@@ -1,0 +1,89 @@
+<tool id="masurca" name="MaSuRCA" version="0.1.0" python_template_version="3.5">
+    <requirements>
+        <requirement type="package" version="3.4.2">masurca</requirement>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        cp $__tool_directory__/default-masurca-config.txt  config.txt &&
+        ln -s $forward ill_1.fastq.gz && ln -s $reverse ill_2.fastq.gz &&
+        cat $nano $pacbio > long.fastq.gz &&
+        sed -i 's|GALAXY_SLOTS|'\${GALAXY_SLOTS:-8}'|' config.txt &&
+        sed -i 's|INPUTREAD1|ill_1.fastq.gz|' config.txt &&
+        sed -i 's|INPUTREAD2|ill_2.fastq.gz|' config.txt &&
+        sed -i 's|MEAN|$mean|' config.txt &&
+        sed -i 's|STDDEV|$stddev|' config.txt &&
+        #if $nanopore_input.np_input:
+            sed -i 's|#NANOPORE=INPUTREADLONG|NANOPORE=long.fastq.gz|' config.txt &&
+            #if $pacbio_input.pb_input:
+                cat $nano $pacbio > long.fastq.gz &&
+            #else:
+                ln -s $nano long.fastq.gz
+            #end if
+        #elif $pacbio_input.pb_input:
+            sed -i 's|#PACBIO=INPUTREADLONG|PACBIO=long.fastq.gz|' config.txt
+        #end if
+        sed -i 's|USE_LINKING_MATES=1|USE_LINKING_MATES=$lnkmts|' config.txt &&
+        sed -i 's|JELLYFISHSIZE|$jfsize|' config.txt &&
+        masurca config.txt &&
+        bash assemble.sh
+    ]]></command>
+    <inputs>
+	<param type="integer" name="mean" value="500" label="Mean size" help="Libarary insert average length" />
+	<param type="integer" name="stddev" value="50" label="Standard deviation" help="Library insert standard deviation - if not known, set it to approximately 15% of the mean" />
+        <conditional name="illumina_input">
+            <param name="input_type" type="select" label="Paired-end reads" help="Select between paired and paired collection">
+                <option value="paired">Paired</option>
+                <option value="paired_collection">Paired Collection</option>
+            </param>
+            <when value="paired">
+                <param type="data" name="forward" format="fastq" label="illumina forward reads" />
+                <param type="data" name="reverse" format="fastq" label="illumina reverse reads" />
+            </when>
+            <when value="paired_collection">
+                <param name="input_collection" format="fastq" type="data_collection" collection_type="paired" label="Select a paired collection" help="Specify paired dataset collection containing paired reads"/>
+            </when>
+        </conditional>
+        <conditional name="nanopore_input">
+            <param name="np_input" type="select" label="Use Nanopore long reads" help="Optional Nanopore reads must be in a single fasta or fastq file">
+                <option value="No" selected="true">No</option>
+                <option value="Yes">Yes</option>
+            </param>
+            <when value="No"/>
+            <when value="Yes">
+                <param type="data" name="nano" format="fastq" label="nanopore reads" />
+            </when>
+        </conditional>
+        <conditional name="pacbio_input">
+            <param name="pb_input" type="select" label="Use Pacbio long reads" help="Optional Pacbio reads must be in a single fasta or fastq file">
+                <option value="No" selected="true">No</option>
+                <option value="Yes">Yes</option>
+            </param>
+            <when value="No"/>
+            <when value="Yes">
+                <param type="data" name="pacbio" format="fastq" label="pacbio reads" />
+            </when>
+        </conditional>
+        <param type="integer" name="jfsize" value="20000000" label="Jellyfish hash size" help="Set this to about 10x the genome size" />
+        <param type="boolean" name="lnkmts" truevalue="1" falsevalue="0" label="Include Linking Mates" help="Most of the paired end reads end up in the same super read and thus are not passed to the assembler. Those that do not end up in the same super read are called ”linking mates” . The best assembly results are achieved by setting this parameter to 1 for Illumina-only assemblies. If you have more than 2x coverage by long reads, set this to 0." />
+    </inputs>
+    <outputs>
+        <data name="scaffold" format="fasta" from_work_dir="CA*/final.genome.scf.fasta" />
+	<data name="log" format="txt" from_work_dir="CA*.log" />
+    </outputs>
+    <tests>
+        <test>
+            <param name="forward" value="ill_1.fastq.gz"/>
+            <param name="reverse" value="ill_2.fastq.gz"/>
+            <param name="nano" value="nano.fastq.gz"/>
+            <param name="pacbio" value="pacbio.fastq.gz"/>
+            <output name="scaffold" file="masurca-hyb-scaffold.fa"/>
+            <output name="long" file="long.fastq.gz"/>
+        </test>
+    </tests>
+    <help><![CDATA[
+	masurca config.txt
+        bash assemble.sh
+    ]]></help>
+    <citations>
+        <citation type="doi">10.1093/bioinformatics/btt476</citation>
+    </citations>
+</tool>
