@@ -1,6 +1,5 @@
-# galaxy_tools
-Galaxy Tool Files
+Tools Wrapped for Galaxy
+========================
 
-## Wrapped tools for Galaxy
 
 
