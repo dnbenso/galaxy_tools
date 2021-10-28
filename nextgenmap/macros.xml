@@ -1,0 +1,16 @@
+<macros>
+    <token name="@WRAPPER_VERSION@">0.5.5</token>
+    <xml name="requirements">
+        <requirements>
+            <requirement type="package" version="@WRAPPER_VERSION@">nextgenmap</requirement>
+            <requirement type="package" version="1.3.1">samtools</requirement>
+            <yield />
+        </requirements>
+    </xml>
+    <xml name="citations">
+        <citations>
+            <citation type="doi">10.1093/bioinformatics/btt468</citation>
+            <yield />
+        </citations>
+    </xml>
+</macros>

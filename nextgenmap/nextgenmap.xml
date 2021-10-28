@@ -1,0 +1,63 @@
+<tool id="nextgenmap" name="NextGenMap" version="@WRAPPER_VERSION@+galaxy0">
+  <description>NextGenMap is a flexible highly sensitive short read mapping tool</description>
+  <macros>
+      <import>macros.xml</import>
+  </macros>
+  <expand macro="requirements" />
+  <command detect_errors="exit_code"><![CDATA[
+        module load nextgenmap samtools &&
+        addmemory=\${GALAXY_MEMORY_MB_PER_SLOT:-768} &&
+        ((addmemory=addmemory*75/100)) &&
+        ln -s '$ref' reference.fa &&
+        ngm -t \${GALAXY_SLOTS:-2} -r '$ref'
+        #if str( $single_paired.single_paired_selector ) == 'single':
+            -q '$single_paired.reads'
+        #elif str( $single_paired.single_paired_selector ) == 'paired':
+            -1 '$single_paired.forward' -2 '$single_paired.reverse'
+        #else
+            -1 '$single_paired.paired_input.forward' -2 '$single_paired.paired_input.reverse'
+        #end if
+        -o out.sam &&
+        samtools sort -O BAM -@ \${GALAXY_SLOTS:-2} -m \$addmemory"M" -o sort.bam -T "\${TMPDIR:-.}" out.sam &&
+        cp sort.bam $output1
+    ]]></command>
+  <inputs>
+    <param type="data" name="ref" format="fasta" label="Assembled reference"/>
+    <conditional name="single_paired">
+        <param name="single_paired_selector" type="select" label="Single-end or paired reads">
+            <option value="single" selected="true">Single-end</option>
+            <option value="paired">Paired</option>
+            <option value="paired_collection">Paired Collection</option>
+        </param>
+        <when value="single">
+            <param name="reads" type="data" format="fastqsanger" label="Select first set of reads" help="Specify dataset with forward reads"/>
+        </when>
+        <when value="paired">
+            <param name="forward" type="data" format="fastqsanger" label="Select first set of reads" help="Specify dataset with forward reads"/>
+            <param name="reverse" type="data" format="fastqsanger" label="Select second set of reads" help="Specify dataset with reverse reads"/>
+        </when>
+        <when value="paired_collection">
+            <param name="paired_input" type="data_collection" collection_type="paired" format="fastq,fastq.gz" label="Select paired collection(s)"/>
+        </when>
+    </conditional>
+  </inputs>
+  <outputs>
+    <data name="output1" format="bam" label="${tool.name} on ${on_string}: BAM" help="Produces sorted BAM file"/>
+  </outputs>
+  <tests>
+    <test>
+        <param name="single_paired_selector" value="paired"/>
+        <param name="forward" ftype="fastq.gz" value="R1.fq.gz"/>
+        <param name="reverse" ftype="fastq.gz" value="R2.fq.gz"/>
+        <param name="ref" ftype="fasta" value="ref.fa"/>
+        <output name="output1" ftype="bam" file="results.bam"/>
+    </test>
+  </tests>
+  <help><![CDATA[
+
+Usage::
+       ngm [-c <path>] {-q <reads> [-p] | -1 <mates 1> -2 <mates 2>} -r <reference> -o <output> [parameter]
+
+    ]]></help>
+  <expand macro="citations" />
+</tool>
