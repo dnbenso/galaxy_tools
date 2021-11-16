@@ -9,7 +9,7 @@
         addmemory=\${GALAXY_MEMORY_MB_PER_SLOT:-768} &&
         ((addmemory=addmemory*75/100)) &&
         ln -s '$ref' reference.fa &&
-        ngm -t \${GALAXY_SLOTS:-2} -r '$ref'
+        ngm -t \${GALAXY_SLOTS:-2} -r '$ref' -i '$min_ident'
         #if str( $single_paired.single_paired_selector ) == 'single':
             -q '$single_paired.reads'
         #elif str( $single_paired.single_paired_selector ) == 'paired':
@@ -17,12 +17,83 @@
         #else
             -1 '$single_paired.paired_input.forward' -2 '$single_paired.paired_input.reverse'
         #end if
+        #if $adv.adv_options == "yes":
+            #if $adv.min_insert_size:
+                --min-insert-size '${adv.min_insert_size}'
+            #end if
+            #if $adv.max_insert_size:
+                --max-insert-size '${adv.max_insert_size}'
+            #end if
+            #if $adv.max_read_length:
+                --max-read-length '${adv.max_read_length}'
+            #end if
+            #if $adv.force_rlength_check:
+                --force-rlength-check
+            #end if
+            #if $adv.topn:
+                --topn '${adv.topn}'
+            #end if
+            #if $adv.strata:
+                --strata
+            #end if
+            #if $adv.keep_tags:
+                --keep-tags
+            #end if
+            #if $adv.hard_clip:
+                --hard-clip
+            #end if
+            #if $adv.silent_clip:
+                --silent-clip
+            #end if
+            #if $adv.rg.rg_options == "yes":
+                #if $adv.rg.rg_id:
+                    --rg-id '${adv.rg.rg_id}'
+                #end if
+                #if $adv.rg.rg_sm:
+                    --rg-id '${adv.rg.rg_sm}'
+                #end if
+                #if $adv.rg.rg_lb:
+                    --rg-id '${adv.rg.rg_lb}'
+                #end if
+                #if $adv.rg.rg_pl:
+                    --rg-id '${adv.rg.rg_pl}'
+                #end if
+                #if $adv.rg.rg_ds:
+                    --rg-id '${adv.rg.rg_ds}'
+                #end if
+                #if $adv.rg.rg_dt:
+                    --rg-id '${adv.rg.rg_dt}'
+                #end if
+                #if $adv.rg.rg_pu:
+                    --rg-id '${adv.rg.rg_pu}'
+                #end if
+                #if $adv.rg.rg_pi:
+                    --rg-id '${adv.rg.rg_pi}'
+                #end if
+                #if $adv.rg.rg_pg:
+                    --rg-id '${adv.rg.rg_pg}'
+                #end if
+                #if $adv.rg.rg_cn:
+                    --rg-id '${adv.rg.rg_cn}'
+                #end if
+                #if $adv.rg.rg_fo:
+                    --rg-id '${adv.rg.rg_fo}'
+                #end if
+                #if $adv.rg.rg_ks:
+                    --rg-id '${adv.rg.rg_ks}'
+                #end if
+            #end if
+            #if $adv.pe_delimiter:
+                --pe-delimiter '${adv.pe_delimiter}'
+            #end if
+        #end if
         -o out.sam &&
         samtools sort -O BAM -@ \${GALAXY_SLOTS:-2} -m \$addmemory"M" -o sort.bam -T "\${TMPDIR:-.}" out.sam &&
         cp sort.bam $output1
     ]]></command>
   <inputs>
     <param type="data" name="ref" format="fasta" label="Assembled reference"/>
+    <param name="min_ident" type="float" min="0" max="1" value="0.5" label="Reads below threshold will be marked unmapped"/>
     <conditional name="single_paired">
         <param name="single_paired_selector" type="select" label="Single-end or paired reads">
             <option value="single" selected="true">Single-end</option>
@@ -40,9 +111,130 @@
             <param name="paired_input" type="data_collection" collection_type="paired" format="fastq,fastq.gz" label="Select paired collection(s)"/>
         </when>
     </conditional>
+    <conditional name="adv">
+        <param type="select"  name="adv_options" label="Show advanced options">
+            <option value="yes">Yes</option>
+            <option value="no" selected="true">No</option>
+        </param>
+        <when value="yes">
+            <param argument="--min-insert-size" name="min_insert_size" type="integer" optional="true" min="0" label="The min insert size for paired end alignments [0]" />
+            <param argument="--max-insert-size" name="max_insert_size" type="integer" optional="true" min="0" label="The max insert size for paired end alignments [1000]" />
+            <param argument="--max-read-length" name="max_read_length" type="integer" optional="true" min="0" label="Length of longest read in input. Default is estimated from data" />
+            <param argument="--force-rlength-check" name="force_rlength_check" type="boolean" optional="true" label="Forces NextgenMap to run through all reads to find the max. read length. (default: off)" />
+            <param argument="--topn" name="topn" type="integer" optional="true" label="Prints the &lt;n&gt; best alignments sorted by alignment score [1]" />
+            <param argument="--strata" name="strata" type="boolean" optional="true" label="Only  output  the  highest  scoring  mappings for any  given  read,  up to &lt;n&gt; mappings per read. If a read has more than &lt;n&gt; mappings with the same score, it is discarded and reported as unmapped." />
+            <param argument="--keep-tags" name="keep_tags" type="boolean" optional="true" label="Copy BAM/SAM tags present in input file to output file (default: off)" />
+            <param argument="--no-unal" name="no_unal" type="boolean" optional="true" label="Don't print unaligned reads to output file." />
+            <param argument="--hard-clip" name="hard_clip" type="boolean" optional="true" label="Hard instead of soft clipping in SAM output" />
+            <param argument="--silent-clip" name="silent_clip" type="boolean" optional="true" label="Hard clip reads but don't add clipping information to CIGAR string" />
+            <conditional name="rg">
+                <param type="select"  name="rg_options" label="Add RG headers">
+                    <option value="yes">Yes</option>
+                    <option value="no" selected="true">No</option>
+                </param>
+                <when value="yes">
+                    <param argument="--rg-id" name="rg_id" type="text" optional="true" label="Adds RG:Z: &lt;string&gt; to all alignments in SAM/BAM" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-sm" name="rg_sm" type="text" optional="true" label="RG header: Sample" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-lb" name="rg_lb" type="text" optional="true" label="RG header: Library" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-pl" name="rg_pl" type="text" optional="true" label="RG header: Platform" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-ds" name="rg_ds" type="text" optional="true" label="RG header: Description" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-dt" name="rg_dt" type="text" optional="true" label="RG header: Date (format: YYYY-MM-DD)" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-pu" name="rg_pu" type="text" optional="true" label="RG header: Platform unit" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-pi" name="rg_pi" type="text" optional="true" label="RG header: Median insert size" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-pg" name="rg_pg" type="text" optional="true" label="RG header: Programs" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-cn" name="rg_cn" type="text" optional="true" label="RG header: sequencing center" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-fo" name="rg_fo" type="text" optional="true" label="RG header: Flow order" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                    <param argument="--rg-ks" name="rg_ks" type="text" optional="true" label="RG header: Key sequence" >
+                        <sanitizer>
+                            <valid initial="string.printable">
+                                <remove value="&apos;"/>
+                            </valid>
+                        </sanitizer>
+                    </param>
+                </when>
+                <when value="no">
+                </when>
+            </conditional>
+            <param argument="--pe-delimiter" name="pe_delimiter" type="text" optional="true" label="Character used in suffix that identifies mate 1 and 2. E.g. /1 and /2. This suffixes will be removed to ensure proper SAM output (default: /)" >
+                <sanitizer>
+                    <valid initial="string.printable">
+                        <remove value="&apos;"/>
+                    </valid>
+                </sanitizer>
+            </param>
+        </when>
+        <when value="no">
+        </when>
+    </conditional> 
   </inputs>
   <outputs>
-    <data name="output1" format="bam" label="${tool.name} on ${on_string}: BAM" help="Produces sorted BAM file"/>
+    <data name="output1" format="bam" label="${tool.name} on ${on_string}: BAM" />
   </outputs>
   <tests>
     <test>
@@ -54,9 +246,18 @@
     </test>
   </tests>
   <help><![CDATA[
+**NextGenMap**
 
-Usage::
-       ngm [-c <path>] {-q <reads> [-p] | -1 <mates 1> -2 <mates 2>} -r <reference> -o <output> [parameter]
+`NextGenMap`_ is a flexible highly sensitive short read mapping tool that handles much higher mismatch rates than comparable algorithms while still outperforming them in terms of runtime. This allows analysing large scale datasets even with increased SNP rates or higher error rates (e.g. caused by specialized experimental protocols) and avoids biases caused by highly variable regions in the genome.
+
+-----
+
+**Usage**
+
+ngm [-c <path>] {-q <reads> [-p] | -1 <mates 1> -2 <mates 2>} -r <reference> -o <output> [parameter]
+
+
+.. _NextGenMap: https://github.com/Cibiv/NextGenMap/wiki
 
     ]]></help>
   <expand macro="citations" />
