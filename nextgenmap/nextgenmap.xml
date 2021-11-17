@@ -5,7 +5,6 @@
   </macros>
   <expand macro="requirements" />
   <command detect_errors="exit_code"><![CDATA[
-        module load nextgenmap samtools &&
         addmemory=\${GALAXY_MEMORY_MB_PER_SLOT:-768} &&
         ((addmemory=addmemory*75/100)) &&
         ln -s '$ref' reference.fa &&
