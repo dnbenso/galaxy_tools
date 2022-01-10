@@ -1,6 +1,10 @@
-<tool id="masurca" name="MaSuRCA" version="0.1.0" python_template_version="3.5">
+<tool id="masurca" name="MaSuRCA" version="@TOOL_VERSION@+galaxy0"> 
+    <description>The MaSuRCA (Maryland Super Read Cabog Assembler) genome assembly and analysis toolkit</description>
+    <macros>
+        <token name="@TOOL_VERSION@">4.0.6</token>
+    </macros>
     <requirements>
-        <requirement type="package" version="3.4.2">masurca</requirement>
+        <requirement type="package" version="@TOOL_VERSION@">masurca</requirement>
     </requirements>
     <command detect_errors="exit_code"><![CDATA[
         cp $__tool_directory__/default-masurca-config.txt  config.txt &&
