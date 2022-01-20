@@ -1,0 +1,106 @@
+<tool id="masurca_simple" name="MaSuRCA simple" version="@TOOL_VERSION@+galaxy0"> 
+    <description>The MaSuRCA (Maryland Super Read Cabog Assembler) genome assembly and analysis toolkit</description>
+    <macros>
+        <token name="@TOOL_VERSION@">4.0.6</token>
+    </macros>
+    <requirements>
+        <requirement type="package" version="@TOOL_VERSION@">masurca</requirement>
+    </requirements>
+    <command detect_errors="exit_code"><![CDATA[
+        #set $long = 'false'
+        #if $nanopore_input.np_input == "Yes":
+            #if $pacbio_input.pb_input == "Yes":
+                cat '$nanopore_input.nano' '$pacbio_input.pacbio' > long.fastq.gz &&
+            #else:
+                ln -s '$nanopore_input.nano' long.fastq.gz &&
+            #end if
+            #set $long = 'true'
+        #elif $pacbio_input.pb_input == "Yes":
+            ln -s '$pacbio_input.pacbio' long.fastq.gz &&
+            #set $long = 'true'
+        #end if
+        masurca -t \${GALAXY_SLOTS:-8} -i
+        #if str( $illumina_input.input_type ) == "single"
+            '$illumina_input.fastq_input1'
+        #elif str( $illumina_input.input_type ) == "paired"
+            '$illumina_input.fastq_input1','$illumina_input.fastq_input2'
+        #elif str( $illumina_input.input_type ) == "paired_collection"
+            '$illumina_input.fastq_input1','$illumina_input.fastq_input2'
+        #end if
+        #if $long == "true":
+            -r long.fastq.gz
+        #end if
+    ]]></command>
+    <inputs>
+        <conditional name="illumina_input">
+            <param name="input_type" type="select" label="Paired-end reads" help="Select between paired and paired collection">
+                <option value="single">Single</option>
+                <option value="paired">Paired</option>
+                <option value="paired_collection">Paired Collection</option>
+            </param>
+            <when value="single">
+                <param type="data" name="fastq_input1" format="fastqsanger,fastqsanger.gz"
+                    label="Select unpaired reads" help="Specify dataset with unpaired reads"/>
+            </when>
+            <when value="paired">
+                <param type="data" name="fastq_input1" format="fastqsanger,fastqsanger.gz"
+                    label="Select first set of reads" help="Specify dataset with forward reads"/>
+                <param type="data" name="fastq_input2" format="fastqsanger,fastqsanger.gz"
+                    label="Select second set of reads" help="Specify dataset with reverse reads"/>
+            </when>
+            <when value="paired_collection">
+                <param name="fastq_input1" format="fastqsanger,fastqsanger.gz" type="data_collection" collection_type="paired" label="Select a paired collection" />
+            </when>
+        </conditional>
+        <conditional name="nanopore_input">
+            <param name="np_input" type="select" label="Use Nanopore long reads" help="Optional Nanopore reads must be in a single fasta or fastq file">
+                <option value="No" selected="true">No</option>
+                <option value="Yes">Yes</option>
+            </param>
+            <when value="No"/>
+            <when value="Yes">
+                <param type="data" name="nano" format="fastqsanger,fastqsanger.gz,fasta,fasta.gz" label="nanopore reads" />
+            </when>
+        </conditional>
+        <conditional name="pacbio_input">
+            <param name="pb_input" type="select" label="Use Pacbio long reads" help="Optional Pacbio reads must be in a single fasta or fastq file">
+                <option value="No" selected="true">No</option>
+                <option value="Yes">Yes</option>
+            </param>
+            <when value="No"/>
+            <when value="Yes">
+                <param type="data" name="pacbio" format="fastqsanger,fastqsanger.gz,fasta,fasta.gz" label="pacbio reads" />
+            </when>
+        </conditional>
+    </inputs>
+    <outputs>
+        <data name="superReads" format="fasta" from_work_dir="work1/superReadSequences.fasta" label="${tool.name} on ${on_string}: superReads" />
+        <data name="scaffold" format="fasta" from_work_dir="CA.mr.*/primary.genome.scf.fasta" label="${tool.name} on ${on_string}: primary_genome" />
+        <data name="scaffold" format="fasta" from_work_dir="CA.mr.*/alternative.genome.scf.fasta" label="${tool.name} on ${on_string}: alternative_genome" />
+    </outputs>
+    <tests>
+        <test>
+            <conditional name="illumina_input">
+                <param name="input_type" value="single" />
+                <param name="forward" value="phix_f.fq.gz"/>
+                <param name="reverse" value="phix_r.fq.gz"/>
+            </conditional>
+            <conditional name="nanopore_input">
+                <param name="np_input" value="Yes" />
+                <param name="nano" value="onp.fa"/>
+            </conditional>
+            <output name="superReads" ftype="fasta" />
+        </test>
+    </tests>
+    <help><![CDATA[
+
+        This implementation of MaSuRCA is for small projects that only have PE
+        Illumina reads (mandatory) and long reads from PACBIO or Oxford
+        Nanopore or both. For larger projects and if you want to change the
+        default options, you will need to run masurca_complex
+
+    ]]></help>
+    <citations>
+        <citation type="doi">10.1093/bioinformatics/btt476</citation>
+    </citations>
+</tool>
