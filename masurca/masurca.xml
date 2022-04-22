@@ -1,5 +1,5 @@
-<tool id="masurca" name="MaSuRCA" version="@TOOL_VERSION@+galaxy0"> 
-    <description>The MaSuRCA (Maryland Super Read Cabog Assembler) genome assembly and analysis toolkit</description>
+<tool id="masurca" name="MaSuRCA" version="@TOOL_VERSION@+galaxy0">
+    <description>The MaSuRCA (Maryland Super Read Cabog Assembler) genome assembly and analysis toolkit with config</description>
     <macros>
         <token name="@TOOL_VERSION@">4.0.6</token>
     </macros>
@@ -7,45 +7,69 @@
         <requirement type="package" version="@TOOL_VERSION@">masurca</requirement>
     </requirements>
     <command detect_errors="exit_code"><![CDATA[
-        cp $__tool_directory__/default-masurca-config.txt  config.txt &&
-        ln -s $forward ill_1.fastq.gz && ln -s $reverse ill_2.fastq.gz &&
-        cat $nano $pacbio > long.fastq.gz &&
+        cp $__tool_directory__/default-masurca-config  config.txt &&
+        #if $nanopore_input.np_input == "Yes":
+            #if $pacbio_input.pb_input == "Yes":
+                cat '$nanopore_input.nano' '$pacbio_input.pacbio' > \$_GALAXY_JOB_TMP_DIR/long.fastq.gz &&
+            #else:
+                ln -s '$nanopore_input.nano' \$_GALAXY_JOB_TMP_DIR/long.fastq.gz &&
+            #end if
+            sed -i 's|#NANOPORE=INPUTREADLONG|NANOPORE='\$_GALAXY_JOB_TMP_DIR'/long.fastq.gz|' config.txt &&
+        #elif $pacbio_input.pb_input == "Yes":
+            ln -s '$pacbio_input.pacbio' \$_GALAXY_JOB_TMP_DIR/long.fastq.gz &&
+            sed -i 's|#PACBIO=INPUTREADLONG|PACBIO='\$_GALAXY_JOB_TMP_DIR'/long.fastq.gz|' config.txt &&
+        #end if
+        #if str( $illumina_input.input_type ) == "single"
+            ln -s '$illumina_input.fastq_input1' ill_1.fastq.gz &&
+            sed -i 's|INPUTREAD1|ill_1.fastq.gz|' config.txt &&
+        #elif str( $illumina_input.input_type ) == "paired"
+            ln -s '$illumina_input.fastq_input1' ill_1.fastq.gz &&
+            sed -i 's|INPUTREAD1|ill_1.fastq.gz|' config.txt && 
+            ln -s '$illumina_input.fastq_input2' ill_2.fastq.gz &&
+            sed -i 's|INPUTREAD2|ill_2.fastq.gz|' config.txt &&
+        #elif str( $illumina_input.input_type ) == "paired_collection"
+            ln -s '$illumina_input.fastq_input1' ill_1.fastq.gz &&
+            sed -i 's|INPUTREAD1|ill_1.fastq.gz|' config.txt && 
+            ln -s '$illumina_input.fastq_input2' ill_2.fastq.gz &&
+            sed -i 's|INPUTREAD2|ill_2.fastq.gz|' config.txt &&
+        #end if
+        #if $reference_input.ref_input == "Yes":
+            sed -i 's|#REFERENCE=REF|REFERENCE=$ref|' config.txt &&
+        #end if
         sed -i 's|GALAXY_SLOTS|'\${GALAXY_SLOTS:-8}'|' config.txt &&
-        sed -i 's|INPUTREAD1|ill_1.fastq.gz|' config.txt &&
-        sed -i 's|INPUTREAD2|ill_2.fastq.gz|' config.txt &&
         sed -i 's|MEAN|$mean|' config.txt &&
         sed -i 's|STDDEV|$stddev|' config.txt &&
-        #if $nanopore_input.np_input:
-            sed -i 's|#NANOPORE=INPUTREADLONG|NANOPORE=long.fastq.gz|' config.txt &&
-            #if $pacbio_input.pb_input:
-                cat $nano $pacbio > long.fastq.gz &&
-            #else:
-                ln -s $nano long.fastq.gz
-            #end if
-        #elif $pacbio_input.pb_input:
-            sed -i 's|#PACBIO=INPUTREADLONG|PACBIO=long.fastq.gz|' config.txt
-        #end if
-        sed -i 's|USE_LINKING_MATES=1|USE_LINKING_MATES=$lnkmts|' config.txt &&
         sed -i 's|JELLYFISHSIZE|$jfsize|' config.txt &&
+        sed -i 's|USE_LINKING_MATES = 0|USE_LINKING_MATES = $lnkmts|' config.txt &&
+        sed -i 's|MEGA_READS_ONE_PASS=0|MEGA_READS_ONE_PASS=$mega_one_pass|' config.txt &&
+        sed -i 's|FLYE_ASSEMBLY=0|FLYE_ASSEMBLY=$flye|' config.txt &&
         masurca config.txt &&
         bash assemble.sh
     ]]></command>
     <inputs>
-	<param type="integer" name="mean" value="500" label="Mean size" help="Libarary insert average length" />
-	<param type="integer" name="stddev" value="50" label="Standard deviation" help="Library insert standard deviation - if not known, set it to approximately 15% of the mean" />
         <conditional name="illumina_input">
             <param name="input_type" type="select" label="Paired-end reads" help="Select between paired and paired collection">
+                <option value="single">Single</option>
                 <option value="paired">Paired</option>
                 <option value="paired_collection">Paired Collection</option>
             </param>
+            <when value="single">
+                <param type="data" name="fastq_input1" format="fastqsanger,fastqsanger.gz"
+                    label="Select unpaired reads" help="Specify dataset with unpaired reads"/>
+            </when>
             <when value="paired">
-                <param type="data" name="forward" format="fastq" label="illumina forward reads" />
-                <param type="data" name="reverse" format="fastq" label="illumina reverse reads" />
+                <param type="data" name="fastq_input1" format="fastqsanger,fastqsanger.gz"
+                    label="Select first set of reads" help="Specify dataset with forward reads"/>
+                <param type="data" name="fastq_input2" format="fastqsanger,fastqsanger.gz"
+                    label="Select second set of reads" help="Specify dataset with reverse reads"/>
             </when>
             <when value="paired_collection">
-                <param name="input_collection" format="fastq" type="data_collection" collection_type="paired" label="Select a paired collection" help="Specify paired dataset collection containing paired reads"/>
+                <param name="fastq_input1" format="fastqsanger,fastqsanger.gz" type="data_collection" collection_type="paired" label="Select a paired collection" />
             </when>
         </conditional>
+        <param type="integer" name="mean" value="500" label="Mean size" help="Libarary insert average length" />
+        <param type="integer" name="stddev" value="50" label="Standard deviation"
+               help="Library insert standard deviation - if not known, set it to approximately 15% of the mean" />
         <conditional name="nanopore_input">
             <param name="np_input" type="select" label="Use Nanopore long reads" help="Optional Nanopore reads must be in a single fasta or fastq file">
                 <option value="No" selected="true">No</option>
@@ -53,7 +77,7 @@
             </param>
             <when value="No"/>
             <when value="Yes">
-                <param type="data" name="nano" format="fastq" label="nanopore reads" />
+                <param type="data" name="nano" format="fastqsanger,fastqsanger.gz,fasta,fasta.gz" label="nanopore reads" />
             </when>
         </conditional>
         <conditional name="pacbio_input">
@@ -63,29 +87,110 @@
             </param>
             <when value="No"/>
             <when value="Yes">
-                <param type="data" name="pacbio" format="fastq" label="pacbio reads" />
+                <param type="data" name="pacbio" format="fastqsanger,fastqsanger.gz,fasta,fasta.gz" label="pacbio reads" />
+            </when>
+        </conditional>
+        <conditional name="reference_input">
+            <param name="ref_input" type="select" label="Synteny-assisted assembly" help="Concatenate all reference genomes into one reference.fa; works for Illumina-only data">
+                <option value="No" selected="true">No</option>
+                <option value="Yes">Yes</option>
+            </param>
+            <when value="No"/>
+            <when value="Yes">
+                <param type="data" name="ref" format="fasta,fasta.gz" label="Reference" />
             </when>
         </conditional>
         <param type="integer" name="jfsize" value="20000000" label="Jellyfish hash size" help="Set this to about 10x the genome size" />
-        <param type="boolean" name="lnkmts" truevalue="1" falsevalue="0" label="Include Linking Mates" help="Most of the paired end reads end up in the same super read and thus are not passed to the assembler. Those that do not end up in the same super read are called ”linking mates” . The best assembly results are achieved by setting this parameter to 1 for Illumina-only assemblies. If you have more than 2x coverage by long reads, set this to 0." />
+        <param type="boolean" name="mega_one_pass" truevalue="1" falsevalue="0" label="MEGA_READS_ONE_PASS"
+            help="set to 0 (default) to do two passes of mega-reads for slower, but higher quality assembly, otherwise set to 1" />
+        <param type="boolean" name="flye" truevalue="1" falsevalue="0" label="Set this to use Flye assembler for final assembly of corrected mega-reads"
+            help="If you are doing Hybrid Illumina paired end + Nanopore/PacBio assembly ONLY (no Illumina mate pairs or OTHER frg files). DO NOT use if you have less than 15x coverage by long read" />
+        <param type="boolean" name="lnkmts" truevalue="1" falsevalue="0" label="Include Linking Mates"
+            help="Most of the paired end reads end up in the same super read and thus are not passed to the assembler. Those that do not end up in the same super read are called ”linking mates” . The best assembly results are achieved by setting this parameter to 1 for Illumina-only assemblies. If you have more than 2x coverage by long reads, set this to 0." />
     </inputs>
     <outputs>
-        <data name="scaffold" format="fasta" from_work_dir="CA*/final.genome.scf.fasta" />
-	<data name="log" format="txt" from_work_dir="CA*.log" />
+        <data name="final_assembly" format="fasta" from_work_dir="final_assembly.fasta" label="${tool.name} on ${on_string}: final_assembly.fasta"/>
+        <data name="ca_contigs" format="fasta" from_work_dir="CA.contigs.fa" label="${tool.name} on ${on_string}: CA.contigs.fa"/>
+        <data name="superReads" format="fasta" from_work_dir="superReadSequences.named.fasta" label="${tool.name} on ${on_string}: named_superReads" />
+        <data name="scaffold_prm" format="fasta" from_work_dir="CA.mr.*/final.genome.scf.fasta" label="${tool.name} on ${on_string}: final_genome">
+            <filter>flye == False</filter>
+        </data>
+        <data name="scaffold_alt" format="fasta" from_work_dir="CA.mr.*/alternative.genome.scf.fasta" label="${tool.name} on ${on_string}: alternative_genome">
+            <filter>flye == False</filter>
+        </data>
+        <data name="flye_assembly" format="fasta" from_work_dir="flye.mr.*/assembly.fasta" label="${tool.name} on ${on_string}: flye_assembly">
+            <filter>flye == True</filter>
+        </data>
+        <data name="flye_log" format="txt" from_work_dir="flye.mr.*/flye.log" label="${tool.name} on ${on_string}: flye_log">
+            <filter>flye == True</filter>
+        </data>
     </outputs>
     <tests>
         <test>
-            <param name="forward" value="ill_1.fastq.gz"/>
-            <param name="reverse" value="ill_2.fastq.gz"/>
-            <param name="nano" value="nano.fastq.gz"/>
-            <param name="pacbio" value="pacbio.fastq.gz"/>
-            <output name="scaffold" file="masurca-hyb-scaffold.fa"/>
-            <output name="long" file="long.fastq.gz"/>
+        <!--
+            The test files are too large for upload to a toolshed or git repo. 
+            For convenience I've include download instructions in each file so
+            that if you are testing with planemo you can at least download the
+            data and perform a basic test. If anyone has any datasets less than
+            1Mb that can be used to complete an assembly please let me know.
+        -->
+            <conditional name="illumina_input">
+                <param name="input_type" value="paired" />
+                <param name="fastq_input1" value="illumina_reads_1.fastq"/>
+                <param name="fastq_input2" value="illumina_reads_2.fastq"/>
+            </conditional>
+            <conditional name="nanopore_input">
+                <param name="np_input" value="Yes" />
+                <param name="nano" value="nanopore_reads.fastq" />
+            </conditional>
+            <conditional name="pacbio_input">
+                <param name="pb_input" value="No" />
+            </conditional>
+            <conditional name="reference_input">
+                <param name="ref_input" value="Yes" />
+                <param name="ref" value="reference_genome.fasta" />
+            </conditional>
+            <param name="mean" value="500" />
+            <param name="stddev" value="50" />
+            <param name="jfsize" value="80349460" />
+            <param name="mega_one_pass" value="0" />
+            <param name="flye" value="1" />
+            <param name="lnkmts" value="0" />
+            <output name="superReads" ftype="fasta">
+                <assert_contents>
+                   <has_line_matching expression="^GAAAGCCGTGGCTTGGAACGGTGCTGATTGATCCGGC.*"/> 
+                </assert_contents>
+            </output>
         </test>
     </tests>
     <help><![CDATA[
-	masurca config.txt
-        bash assemble.sh
+
+**MaSuRCA**
+
+This implementation of MaSuRCA uses a config file for more complicated assemblies and to change default settings. Illumina reads (mandatory) and long reads from PACBIO or Oxford Nanopore or both can be included.  It is written by `Aleksey Zimin`_ at Johns Hopkins University. Included below is relevant notes from MaSuRCA's `github page`_.
+
+.. _`Aleksey Zimin`: https://github.com/alekseyzimin
+.. _`github page`: https://github.com/alekseyzimin/masurca
+
+-----
+
+**Input data**
+
+The following types of data are supported:
+
+  * Illumina paired end (or single end) reads -- MANDATORY. The mean and stdev parameters are the library insert average length and standard deviation. If the standard deviation is not known, set it to approximately 15% of the mean.If the second (reverse) read set is not available, do not specify it and just specify the forward reads. Files must be in fastq format and can be gzipped.
+  * PacBio/MinION data are supported. Note that you have to have 50x + coverage in Illumina Paired End reads to use PacBio of Oxford Nanopore MinION data. Supply PacBio or MinION reads in a single fasta or fastq file (can be gzipped).
+
+**Parameters**
+
+The following parameter is mandatory:
+
+  * jellyfish hash size, set this to about 10x the genome size.
+
+Optional parameters:
+
+  * linking mates: Most of the paired end reads end up in the same super read and thus are not passed to the assembler. Those that do not end up in the same super read are called ”linking mates” . The best assembly results are achieved by setting this parameter to 1 for Illumina-only assemblies. If you have more than 2x coverage by long (454, Sanger, etc) reads, set this to 0.
+  
     ]]></help>
     <citations>
         <citation type="doi">10.1093/bioinformatics/btt476</citation>

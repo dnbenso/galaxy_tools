@@ -1,5 +1,5 @@
 <tool id="masurca_simple" name="MaSuRCA simple" version="@TOOL_VERSION@+galaxy0"> 
-    <description>The MaSuRCA (Maryland Super Read Cabog Assembler) genome assembly and analysis toolkit</description>
+    <description>The MaSuRCA (Maryland Super Read Cabog Assembler) genome assembly and analysis toolkit without config</description>
     <macros>
         <token name="@TOOL_VERSION@">4.0.6</token>
     </macros>
@@ -10,13 +10,13 @@
         #set $long = 'false'
         #if $nanopore_input.np_input == "Yes":
             #if $pacbio_input.pb_input == "Yes":
-                cat '$nanopore_input.nano' '$pacbio_input.pacbio' > long.fastq.gz &&
+                cat '$nanopore_input.nano' '$pacbio_input.pacbio' > \$_GALAXY_JOB_TMP_DIR/long.fastq.gz &&
             #else:
-                ln -s '$nanopore_input.nano' long.fastq.gz &&
+                ln -s '$nanopore_input.nano' \$_GALAXY_JOB_TMP_DIR/long.fastq.gz &&
             #end if
             #set $long = 'true'
         #elif $pacbio_input.pb_input == "Yes":
-            ln -s '$pacbio_input.pacbio' long.fastq.gz &&
+            ln -s '$pacbio_input.pacbio' \$_GALAXY_JOB_TMP_DIR/long.fastq.gz &&
             #set $long = 'true'
         #end if
         masurca -t \${GALAXY_SLOTS:-8} -i
@@ -28,7 +28,7 @@
             '$illumina_input.fastq_input1','$illumina_input.fastq_input2'
         #end if
         #if $long == "true":
-            -r long.fastq.gz
+            -r \$_GALAXY_JOB_TMP_DIR/long.fastq.gz
         #end if
     ]]></command>
     <inputs>
@@ -75,21 +75,28 @@
     </inputs>
     <outputs>
         <data name="superReads" format="fasta" from_work_dir="work1/superReadSequences.fasta" label="${tool.name} on ${on_string}: superReads" />
-        <data name="scaffold" format="fasta" from_work_dir="CA.mr.*/primary.genome.scf.fasta" label="${tool.name} on ${on_string}: primary_genome" />
-        <data name="scaffold" format="fasta" from_work_dir="CA.mr.*/alternative.genome.scf.fasta" label="${tool.name} on ${on_string}: alternative_genome" />
+        <data name="scaffold_prm" format="fasta" from_work_dir="CA.mr.*/primary.genome.scf.fasta" label="${tool.name} on ${on_string}: primary_genome" />
+        <data name="scaffold_alt" format="fasta" from_work_dir="CA.mr.*/alternative.genome.scf.fasta" label="${tool.name} on ${on_string}: alternative_genome" />
     </outputs>
     <tests>
         <test>
             <conditional name="illumina_input">
-                <param name="input_type" value="single" />
-                <param name="forward" value="phix_f.fq.gz"/>
-                <param name="reverse" value="phix_r.fq.gz"/>
+                <param name="input_type" value="paired" />
+                <param name="fastq_input1" value="phix_f.fq.gz"/>
+                <param name="fastq_input2" value="phix_r.fq.gz"/>
             </conditional>
             <conditional name="nanopore_input">
                 <param name="np_input" value="Yes" />
                 <param name="nano" value="onp.fa"/>
             </conditional>
-            <output name="superReads" ftype="fasta" />
+            <conditional name="pacbio_input">
+                <param name="pb_input" value="No" />
+            </conditional>
+            <output name="superReads" ftype="fasta">
+                <assert_contents>
+                    <has_line_matching expression="^TCCGAAAGTGTTAACTT.*"/>
+                </assert_contents>
+            </output>
         </test>
     </tests>
     <help><![CDATA[
